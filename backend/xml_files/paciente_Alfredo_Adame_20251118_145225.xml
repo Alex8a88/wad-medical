@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<paciente>
+    <num_afiliacion>18037339</num_afiliacion>
+    <datos_personales>
+        <primer_nombre>Alfredo</primer_nombre>
+        <segundo_nombre/>
+        <primer_apellido>Adame</primer_apellido>
+        <segundo_apellido/>
+        <nombre_completo>Alfredo Adame</nombre_completo>
+        <edad>65</edad>
+        <genero>M</genero>
+    </datos_personales>
+    <datos_medicos>
+        <tipo_sangre>A+</tipo_sangre>
+        <alergias>Diclofenaco</alergias>
+    </datos_medicos>
+    <contacto>
+        <email_usuario>alfred61@gmail.com</email_usuario>
+        <numero_telefono>3322556622</numero_telefono>
+    </contacto>
+    <direccion>
+        <calle>Paseo del sol</calle>
+        <num_ext>234</num_ext>
+        <num_int/>
+        <colonia>Laureles</colonia>
+        <ciudad>Naulcalpan</ciudad>
+        <estado>7</estado>
+        <c_postal>02146</c_postal>
+    </direccion>
+    <metadatos>
+        <origen>WEB</origen>
+        <fecha_evento>2025-11-18T14:52:25.340814Z</fecha_evento>
+        <operacion>ALTA</operacion>
+        <checksum>b03ceff0a813c649850f6f328f8fae7dc2436ca066b9e133b507a25e1d2bb7bf</checksum>
+    </metadatos>
+</paciente>

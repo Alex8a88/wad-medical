@@ -1,0 +1,4 @@
+echo "node_modules/" > .gitignore
+echo "frontend/node_modules/" >> .gitignore
+echo "__pycache__/" >> .gitignore
+echo "*.pyc" >> .gitignore

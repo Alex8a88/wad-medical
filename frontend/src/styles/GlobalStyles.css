@@ -1,0 +1,205 @@
+/* Global Minimalistic Design System */
+
+/* Typography */
+.text-primary {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #333;
+}
+
+.text-secondary {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #666;
+}
+
+.text-muted {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #999;
+}
+
+.heading-large {
+  font-size: 2rem;
+  font-weight: 600;
+  color: #1976d2;
+  margin: 0 0 1rem 0;
+}
+
+.heading-medium {
+  font-size: 1.5rem;
+  font-weight: 500;
+  color: #333;
+  margin: 0 0 0.75rem 0;
+}
+
+.heading-small {
+  font-size: 1.25rem;
+  font-weight: 500;
+  color: #333;
+  margin: 0 0 0.5rem 0;
+}
+
+.body-text {
+  font-size: 1rem;
+  font-weight: 400;
+  color: #333;
+  line-height: 1.5;
+}
+
+.caption-text {
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: #666;
+}
+
+/* Standardized Boxes */
+.box-primary {
+  background-color: white;
+  border: 1px solid #e1e8ed;
+  border-radius: 8px;
+  padding: 2rem;
+  box-sizing: border-box;
+}
+
+.box-secondary {
+  background-color: white;
+  border: 1px solid #e1e8ed;
+  border-radius: 6px;
+  padding: 1.5rem;
+  box-sizing: border-box;
+}
+
+.box-small {
+  background-color: white;
+  border: 1px solid #e1e8ed;
+  border-radius: 4px;
+  padding: 1rem;
+  box-sizing: border-box;
+}
+
+.box-wrapper {
+  background-color: white;
+  border: 1px solid #e1e8ed;
+  border-radius: 8px;
+  padding: 2.5rem;
+  max-width: 800px;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+/* Form Elements */
+.form-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 0.25rem;
+}
+
+.form-input {
+  padding: 0.75rem;
+  border: 1px solid #e1e8ed;
+  border-radius: 4px;
+  font-size: 1rem;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  transition: border-color 0.2s ease;
+  box-sizing: border-box;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #1976d2;
+}
+
+.form-button-primary {
+  background-color: #1976d2;
+  color: white;
+  border: none;
+  padding: 0.875rem 2rem;
+  border-radius: 4px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.form-button-primary:hover {
+  background-color: #1565c0;
+}
+
+.form-button-secondary {
+  background-color: transparent;
+  color: #1976d2;
+  border: 1px solid #1976d2;
+  padding: 0.875rem 2rem;
+  border-radius: 4px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.form-button-secondary:hover {
+  background-color: #1976d2;
+  color: white;
+}
+
+/* Layout Utilities */
+.container-centered {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+}
+
+.flex-column {
+  display: flex;
+  flex-direction: column;
+}
+
+.flex-row {
+  display: flex;
+  flex-direction: row;
+}
+
+.gap-small {
+  gap: 0.5rem;
+}
+
+.gap-medium {
+  gap: 1rem;
+}
+
+.gap-large {
+  gap: 1.5rem;
+}
+
+.text-center {
+  text-align: center;
+}
+
+/* Icon Styling */
+.icon-large {
+  font-size: 4rem;
+  color: #1976d2;
+  margin-bottom: 1rem;
+}
+
+.icon-medium {
+  font-size: 2rem;
+  color: #1976d2;
+}
+
+.icon-small {
+  font-size: 1rem;
+  color: #666;
+}
