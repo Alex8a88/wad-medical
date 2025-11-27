@@ -24,6 +24,7 @@ from sync_patients import sync_patients_from_drive
 
 # Importaciones de Utilidades
 from pdf_generator import generar_pdf_receta_local
+from printer_utils import enviar_a_impresora
 
 class ToolTip:
     def __init__(self, widget, text):
@@ -759,7 +760,13 @@ class MandarRecetasTab(ttk.Frame):
             self.log_message("Error: Debe seleccionar una receta")
             return
             
-        receta_id = self.recetas_map[seleccion]
+        try:
+            # Obtener ID del mapa
+            receta_id = self.recetas_map[seleccion]
+        except KeyError:
+            self.log_message("Error: Seleccione una receta válida de la lista.")
+            return
+
         self.log_message(f"Procesando receta local ID: {receta_id}")
         
         session = SessionLocal()
@@ -770,27 +777,46 @@ class MandarRecetasTab(ttk.Frame):
                 return
             
             self.log_message("=== INFORMACIÓN DE LA RECETA ===")
-            self.log_message(f"Folio Web: {receta.folio_web}")
+            self.log_message(f"Folio: {receta.folio_web}")
             self.log_message(f"Paciente: {receta.num_afiliacion}")
             self.log_message(f"Médico: {receta.nombre_doctor}")
-            self.log_message(f"Diagnóstico: {receta.diagnostico}")
             
-            self.log_message("\nMedicamentos:")
-            for med in receta.medicamentos:
-                self.log_message(f"- {med.nombre_medicamento} | {med.dosis}")
+            # 1. Generar el PDF Localmente (para asegurar que existe)
+            # Creamos carpeta si no existe
+            pdf_dir = os.path.join(os.getcwd(), "pdfs_local")
+            os.makedirs(pdf_dir, exist_ok=True)
             
-            # Generar PDF de nuevo por si acaso
-            pdf_path = f"pdfs_local/receta_{receta.folio_web}.pdf"
+            pdf_name = f"receta_{receta.folio_web}.pdf"
+            pdf_path = os.path.join(pdf_dir, pdf_name)
+            
+            self.log_message(f"Generando PDF en: {pdf_path}")
+            
+            # Usamos la función de generación (pasando la receta y sus medicamentos)
             generar_pdf_receta_local(receta, receta.medicamentos, pdf_path)
-            self.log_message(f"\n✅ PDF listo para impresión en: {pdf_path}")
             
-            # AQUI IRÍA LA LÓGICA DE IMPRESIÓN FÍSICA (os.startfile(pdf_path, "print"))
-            self.log_message(">> Enviando a cola de impresión... (Simulado)")
+            self.log_message("✅ PDF Generado correctamente.")
+            
+            # 2. IMPRESIÓN REAL (El cambio importante)
+            self.log_message("🖨️ Iniciando servicio de impresión de Windows...")
+            
+            exito, mensaje = enviar_a_impresora(pdf_path)
+            
+            if exito:
+                self.log_message(f"✅ ÉXITO: {mensaje}")
+                self.log_message(">> Revisa tu impresora predeterminada.")
+                
+                # Marcar como impresa en base de datos
+                receta.impresa = True
+                session.commit()
+            else:
+                self.log_message(f"❌ ERROR DE IMPRESIÓN: {mensaje}")
             
             self.log_message("\n" + "="*50)
             
         except Exception as e:
             self.log_message(f"Error procesando: {str(e)}")
+            import traceback
+            traceback.print_exc()
         finally:
             session.close()
 
