@@ -1,34 +1,29 @@
-# gui.py - simple Tkinter interface with tabs
 import tkinter as tk
 from tkinter import ttk, messagebox
+import os
+import sys
+import io
 from datetime import datetime
-from receta_xml import generar_xml_receta, parsear_xml_a_dict
+
+# Importaciones de Base de Datos
 from db import (
     SessionLocal,
     init_db,
-    insertar_receta,
     Medicamento,
-    buscar_paciente_por_codigo,
-    Usuario,
-    PerfilMedico,
-    Receta,
-    RecetaMedicamento,
-    obtener_todas_recetas,
-    obtener_receta_por_id,
     PerfilPaciente,
+    Usuario,
+    PerfilMedico
 )
-from drive_client import (
-    obtener_servicio,
-    subir_archivo_bytes,
-    listar_archivos_en_carpeta,
-    descargar_archivo,
-)
-from config import DRIVE_FOLDER_ID
-from pdf_generator import generar_pdf_receta_completo
-from email_sender import enviar_receta_por_email
+# Importamos los NUEVOS modelos y funciones de recetas
+from db_recetas_models import RecetaLocal, MedicamentoRecetaLocal, init_recetas_db
+from sync_prescriptions import sync_prescriptions
+
+# Importaciones de Drive y Configuración
+from config import DRIVE_FOLDER_ID_RECETAS, DRIVE_FOLDER_ID_PACIENTES 
 from sync_patients import sync_patients_from_drive
 
-
+# Importaciones de Utilidades
+from pdf_generator import generar_pdf_receta_local
 
 class ToolTip:
     def __init__(self, widget, text):
@@ -352,14 +347,9 @@ class RecetasTab(ttk.Frame):
         btn_frame = ttk.Frame(self)
         btn_frame.pack(pady=10)
 
-        self.btn_generar = ttk.Button(
-            btn_frame, text="Generar receta", command=self.generar_receta
-        )
-        self.btn_generar.grid(row=0, column=0, padx=5)
-
         self.btn_recuperar = ttk.Button(
             btn_frame,
-            text="Recuperar recetas",
+            text="Sincronizar y Ver Recetas",
             command=self.recuperar_recetas,
         )
         self.btn_recuperar.grid(row=0, column=1, padx=5)
@@ -638,197 +628,76 @@ class RecetasTab(ttk.Frame):
         finally:
             session.close()
 
-    def generar_receta(self):
-        # Validaciones básicas
-        num_afiliacion = self.entry_num_afiliacion.get().strip()
-        if not num_afiliacion or len(num_afiliacion) != 8:
-            messagebox.showerror(
-                "Error",
-                "Debe ingresar un número de afiliación válido de 8 dígitos",
-            )
-            return
-
-        if not self.entry_diag.get():
-            messagebox.showerror(
-                "Error",
-                "Debe ingresar un diagnóstico",
-            )
-            return
-
-        if not self.entry_cedula.get():
-            messagebox.showerror(
-                "Error",
-                "Debe ingresar la cédula del médico",
-            )
-            return
-
-        # Construir lista de medicamentos a partir de las filas dinámicas
-        medicamentos = []
-        for en_med, en_dosis, en_freq in self.meds_entries:
-            med = en_med.get().strip()
-            dosis = en_dosis.get().strip()
-            freq = en_freq.get().strip()
-            if med or dosis or freq:
-                if not (med and dosis and freq):
-                    messagebox.showerror(
-                        "Error",
-                        "Todas las columnas (Medicamento, Dosis y Frecuencia) "
-                        "deben estar llenas para cada fila.",
-                    )
-                    return
-                medicamentos.append(
-                    {
-                        "medicamento": med,
-                        "dosis": dosis,
-                        "frecuencia": freq,
-                    }
-                )
-
-        if not medicamentos:
-            messagebox.showerror(
-                "Error",
-                "Debe agregar al menos un medicamento",
-            )
-            return
-
-        session = SessionLocal()
-        try:
-            # ===================== PACIENTE =====================
-            perfil = (
-                session.query(PerfilPaciente)
-                .filter_by(num_afiliacion=num_afiliacion)
-                .first()
-            )
-
-            if not perfil:
-                messagebox.showerror("Error", "Paciente no encontrado")
-                return
-
-            if not perfil.integridad_valida:
-                messagebox.showerror(
-                    "Documento alterado",
-                    (
-                        "El expediente de este paciente fue alterado o no pasó la "
-                        "verificación de integridad.\n"
-                        "No es posible generar recetas hasta que se solucione el problema."
-                    ),
-                )
-                return
-
-            usuario = perfil.usuario
-
-            # ===================== MÉDICO =====================
-            cedula = self.entry_cedula.get().strip()
-            perfil_medico = (
-                session.query(PerfilMedico)
-                .filter_by(cedula_profesional=cedula)
-                .first()
-            )
-
-            if not perfil_medico:
-                usuario_medico = Usuario(
-                    email_usuario=f"{cedula}@medico.com",
-                    primer_nombre=self.entry_medico_nombre.get().strip(),
-                    primer_apellido=self.entry_medico_primer_apellido.get().strip(),
-                    segundo_apellido=self.entry_medico_segundo_apellido.get().strip(),
-                    edad=35,
-                    genero="M",
-                    numero_telefono="0000000000",
-                    es_staff=True,
-                )
-                session.add(usuario_medico)
-                session.flush()
-
-                perfil_medico = PerfilMedico(
-                    id_usuario=usuario_medico.id_usuario,
-                    cedula_profesional=cedula,
-                )
-                session.add(perfil_medico)
-                session.flush()
-
-            # ===================== RECETA =====================
-            receta = Receta(
-                paciente=usuario.id_usuario,
-                medico=perfil_medico.id_medico,
-                diagnostico=self.entry_diag.get(),
-            )
-            session.add(receta)
-            session.flush()
-
-            # ===================== MEDICAMENTOS =====================
-            for med_data in medicamentos:
-                medicamento = (
-                    session.query(Medicamento)
-                    .filter_by(nombre=med_data["medicamento"])
-                    .first()
-                )
-                if not medicamento:
-                    medicamento = Medicamento(nombre=med_data["medicamento"])
-                    session.add(medicamento)
-                    session.flush()
-
-                rm = RecetaMedicamento(
-                    receta_id=receta.id,
-                    medicamento_id=medicamento.id,
-                    dosis=med_data["dosis"],
-                    frecuencia=med_data["frecuencia"],
-                )
-                session.add(rm)
-
-            session.commit()
-            messagebox.showinfo(
-                "Éxito",
-                f"Receta generada exitosamente (ID: {receta.id})",
-            )
-
-            # Limpiar algunos campos de la UI
-            self.entry_diag.put_placeholder()
-            for en_med, en_dosis, en_freq in self.meds_entries:
-                en_med.put_placeholder()
-                en_dosis.put_placeholder()
-                en_freq.put_placeholder()
-
-        except Exception as e:
-            session.rollback()
-            messagebox.showerror(
-                "Error",
-                f"Error al generar receta: {str(e)}",
-            )
-        finally:
-            session.close()
-
     def recuperar_recetas(self):
+        """
+        Sincroniza recetas desde Drive y luego las muestra/imprime.
+        CAPTURAMOS LA CONSOLA para mostrar lo que pasa.
+        """
         try:
-            service = obtener_servicio()
-            files = listar_archivos_en_carpeta(service, DRIVE_FOLDER_ID)
-            if not files:
-                messagebox.showinfo(
-                    "Info",
-                    "No se encontraron archivos XML en la carpeta.",
-                )
-                return
-            for f in files:
-                xml_bytes = descargar_archivo(service, f["id"])
-                receta_dict = parsear_xml_a_dict(xml_bytes)
-                self.text_area.insert(
-                    tk.END, f"--- Archivo: {f['name']} ---\n"
-                )
-                self.text_area.insert(
-                    tk.END, xml_bytes.decode("utf-8") + "\n\n"
-                )
-                session = SessionLocal()
-                try:
-                    insertar_receta(session, receta_dict)
-                finally:
-                    session.close()
-            messagebox.showinfo(
-                "Éxito",
-                "Archivos recuperados e insertados en la base de datos.",
-            )
+            # Limpiar área de texto
+            self.text_area.delete(1.0, tk.END)
+            self.text_area.insert(tk.END, ">>> Iniciando proceso de sincronización...\n")
+            self.update_idletasks()
+
+            # --- CAPTURAR SALIDA DE CONSOLA (STDOUT) ---
+            buffer = io.StringIO()
+            original_stdout = sys.stdout
+            sys.stdout = buffer # Redirigir prints a nuestra variable buffer
+
+            try:
+                # 1. Ejecutar sincronización
+                sync_prescriptions()
+            except Exception as e:
+                print(f"\n❌ Error crítico durante la sincronización: {e}")
+            finally:
+                # Restaurar consola normal
+                sys.stdout = original_stdout
+            
+            # Mostrar lo capturado en la GUI
+            log_output = buffer.getvalue()
+            self.text_area.insert(tk.END, log_output)
+            self.text_area.insert(tk.END, "\n>>> Fin del proceso de sincronización.\n")
+            # -------------------------------------------
+            
+            # 2. Leer de la Base de Datos local
+            session = SessionLocal()
+            try:
+                recetas = session.query(RecetaLocal).order_by(RecetaLocal.fecha_creacion.desc()).all()
+                
+                if not recetas:
+                    self.text_area.insert(tk.END, "\n[INFO] No hay recetas registradas en la base de datos local.\n")
+                    return
+
+                self.text_area.insert(tk.END, f"\n=== RESUMEN: {len(recetas)} recetas en BD local ===\n")
+
+                for receta in recetas:
+                    estado_integridad = "✅ VÁLIDA" if receta.integridad_valida else "❌ ALTERADA"
+                    self.text_area.insert(tk.END, f"FOLIO: {receta.folio_web}\n")
+                    self.text_area.insert(tk.END, f"FECHA: {receta.fecha_creacion}\n")
+                    self.text_area.insert(tk.END, f"PACIENTE: {receta.num_afiliacion}\n")
+                    self.text_area.insert(tk.END, f"INTEGRIDAD: {estado_integridad}\n")
+                    
+                    if not receta.integridad_valida:
+                        self.text_area.insert(tk.END, "⚠️ ESTA RECETA NO SE PUEDE PROCESAR POR SEGURIDAD.\n")
+                    else:
+                        # Generar PDF Localmente si es válida
+                        pdf_path = f"pdfs_local/receta_{receta.folio_web}.pdf"
+                        try:
+                            # Pasamos los medicamentos de la relación
+                            generar_pdf_receta_local(receta, receta.medicamentos, pdf_path)
+                            self.text_area.insert(tk.END, f"📄 PDF Generado: {pdf_path}\n")
+                        except Exception as pdf_err:
+                            self.text_area.insert(tk.END, f"❌ Error generando PDF: {pdf_err}\n")
+
+                    self.text_area.insert(tk.END, "-"*30 + "\n")
+
+            finally:
+                session.close()
+
+            messagebox.showinfo("Proceso Finalizado", "Revise el área de texto para ver los resultados.")
+
         except Exception as e:
-            messagebox.showerror("Error", str(e))
-
-
+            messagebox.showerror("Error", f"Error general: {str(e)}")
 
 
 class MandarRecetasTab(ttk.Frame):
@@ -842,85 +711,86 @@ class MandarRecetasTab(ttk.Frame):
         main_frame.pack(padx=10, pady=10, fill='x')
         
         # Receta selection
-        ttk.Label(main_frame, text='Seleccionar Receta:').grid(row=0, column=0, sticky='w', pady=5)
+        ttk.Label(main_frame, text='Seleccionar Receta Local:').grid(row=0, column=0, sticky='w', pady=5)
         
         self.receta_combo = ttk.Combobox(main_frame, width=50, state='readonly')
         self.receta_combo.grid(row=0, column=1, sticky='w', padx=5)
         
         # Refresh button
-        self.btn_refresh = ttk.Button(main_frame, text='Actualizar Lista', command=self.load_recetas)
+        self.btn_refresh = ttk.Button(main_frame, text='Actualizar Lista', command=self.load_recetas_locales)
         self.btn_refresh.grid(row=0, column=2, padx=5)
         
-        # Send button
-        self.btn_mandar = ttk.Button(main_frame, text='Mandar Receta', command=self.mandar_receta)
+        # Send button (Simulado para impresión o reenvío)
+        self.btn_mandar = ttk.Button(main_frame, text='Imprimir / Procesar', command=self.procesar_receta)
         self.btn_mandar.grid(row=1, column=1, pady=10, sticky='w')
         
         # Console area
-        ttk.Label(self, text='Consola:').pack(anchor='w', padx=10)
+        ttk.Label(self, text='Estado:').pack(anchor='w', padx=10)
         self.console_area = tk.Text(self, height=20)
         self.console_area.pack(fill='both', expand=True, padx=10, pady=10)
         
         # Load initial data
-        self.load_recetas()
+        self.load_recetas_locales()
 
-    def load_recetas(self):
+    def load_recetas_locales(self):
         session = SessionLocal()
         try:
-            recetas = obtener_todas_recetas(session)
-            self.receta_combo['values'] = [f"ID: {r['id']} - {r['paciente']} - {r['diagnostico'][:30]}..." for r in recetas]
-            self.recetas_data = {f"ID: {r['id']} - {r['paciente']} - {r['diagnostico'][:30]}...": r['id'] for r in recetas}
-            self.log_message(f"Cargadas {len(recetas)} recetas")
+            # Cargamos recetas locales validadas
+            recetas = session.query(RecetaLocal).filter_by(integridad_valida=True).all()
+            
+            opciones = []
+            self.recetas_map = {}
+            
+            for r in recetas:
+                texto = f"Folio: {r.folio_web} - {r.num_afiliacion} - {r.fecha_creacion}"
+                opciones.append(texto)
+                self.recetas_map[texto] = r.id_receta
+                
+            self.receta_combo['values'] = opciones
+            self.log_message(f"Cargadas {len(recetas)} recetas locales válidas.")
         except Exception as e:
             self.log_message(f"Error cargando recetas: {str(e)}")
         finally:
             session.close()
 
-    def mandar_receta(self):
-        if not self.receta_combo.get():
+    def procesar_receta(self):
+        seleccion = self.receta_combo.get()
+        if not seleccion:
             self.log_message("Error: Debe seleccionar una receta")
             return
             
-        receta_id = self.recetas_data[self.receta_combo.get()]
-        self.log_message(f"Procesando receta ID: {receta_id}")
+        receta_id = self.recetas_map[seleccion]
+        self.log_message(f"Procesando receta local ID: {receta_id}")
         
         session = SessionLocal()
         try:
-            receta_info = obtener_receta_por_id(session, receta_id)
-            if not receta_info:
-                self.log_message(f"Error: No se encontró la receta con ID {receta_id}")
+            receta = session.query(RecetaLocal).get(receta_id)
+            if not receta:
+                self.log_message("Error: Receta no encontrada en BD.")
                 return
-                
+            
             self.log_message("=== INFORMACIÓN DE LA RECETA ===")
-            self.log_message(f"ID: {receta_info['id']}")
-            self.log_message(f"Paciente: {receta_info['paciente']['nombre']}")
-            self.log_message(f"Email: {receta_info['paciente']['correo']}")
-            self.log_message(f"Médico: {receta_info['medico']['nombre']}")
-            self.log_message(f"Diagnóstico: {receta_info['diagnostico']}")
-            self.log_message(f"Fecha: {receta_info['fecha']}")
+            self.log_message(f"Folio Web: {receta.folio_web}")
+            self.log_message(f"Paciente: {receta.num_afiliacion}")
+            self.log_message(f"Médico: {receta.nombre_doctor}")
+            self.log_message(f"Diagnóstico: {receta.diagnostico}")
+            
             self.log_message("\nMedicamentos:")
-            for med in receta_info['medicamentos']:
-                self.log_message(f"- {med['medicina']} | {med['dosis']} | {med['frecuencia']}")
+            for med in receta.medicamentos:
+                self.log_message(f"- {med.nombre_medicamento} | {med.dosis}")
             
-            # Generar PDF
-            self.log_message("\n=== GENERANDO PDF ===")
-            filepath, password = generar_pdf_receta_completo(receta_info)
-            self.log_message(f"PDF generado: {filepath}")
-            self.log_message(f"Contraseña generada: {password}")
+            # Generar PDF de nuevo por si acaso
+            pdf_path = f"pdfs_local/receta_{receta.folio_web}.pdf"
+            generar_pdf_receta_local(receta, receta.medicamentos, pdf_path)
+            self.log_message(f"\n✅ PDF listo para impresión en: {pdf_path}")
             
-            # Enviar por email
-            self.log_message("\n=== ENVIANDO POR EMAIL ===")
-            success, message = enviar_receta_por_email(receta_info, filepath, password)
-            if success:
-                self.log_message(f"✓ {message}")
-                self.log_message("✓ PDF enviado al paciente")
-                self.log_message("✓ Contraseña enviada por separado")
-            else:
-                self.log_message(f"✗ {message}")
+            # AQUI IRÍA LA LÓGICA DE IMPRESIÓN FÍSICA (os.startfile(pdf_path, "print"))
+            self.log_message(">> Enviando a cola de impresión... (Simulado)")
             
             self.log_message("\n" + "="*50)
             
         except Exception as e:
-            self.log_message(f"Error procesando receta: {str(e)}")
+            self.log_message(f"Error procesando: {str(e)}")
         finally:
             session.close()
 
@@ -932,16 +802,19 @@ class AppRecetas(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title('App Recetas')
-        self.geometry('900x600')
+        self.geometry('900x700')
         
-        # Initialize database
+        # Initialize database tables (Pacientes y Recetas)
         init_db()
+        init_recetas_db()
         
-        # Sync with Google Drive first
+        # Sync with Google Drive first (Patients)
         try:
-            self.sync_with_drive()
+            # Opcional: Sincronizar al inicio
+            # sync_patients_from_drive()
+            pass
         except:
-            pass  # Continue without sync if it fails
+            pass 
         
         # Create notebook for tabs
         self.notebook = ttk.Notebook(self)
@@ -949,11 +822,11 @@ class AppRecetas(tk.Tk):
         
         # Add Recetas tab
         self.recetas_tab = RecetasTab(self.notebook)
-        self.notebook.add(self.recetas_tab, text='Generar Recetas')
+        self.notebook.add(self.recetas_tab, text='Sincronización y Consulta')
         
-        # Add Mandar Recetas tab
+        # Add Mandar Recetas tab (Ahora enfocado a Impresión Local)
         self.mandar_tab = MandarRecetasTab(self.notebook)
-        self.notebook.add(self.mandar_tab, text='Mandar Recetas')
+        self.notebook.add(self.mandar_tab, text='Impresión / Historial')
     
     def sync_with_drive(self):
         try:
@@ -961,3 +834,7 @@ class AppRecetas(tk.Tk):
             sync_patients_from_drive()
         except Exception as e:
             messagebox.showerror('Error de sincronización', f'No se pudo sincronizar con Google Drive: {str(e)}')
+
+if __name__ == "__main__":
+    app = AppRecetas()
+    app.mainloop()

@@ -10,7 +10,7 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from db import SessionLocal, Usuario, PerfilPaciente, Direcciones, CatalogoEstados, init_db
-from config import DRIVE_FOLDER_ID
+from config import DRIVE_FOLDER_ID_PACIENTES as DRIVE_FOLDER_ID
 
 # Intentamos importar la versión robusta de checksum_utils
 try:

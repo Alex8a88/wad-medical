@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<receta>
+    <folio>11</folio>
+    <fecha_creacion>2025-11-27T20:58:17.138411+00:00</fecha_creacion>
+    <paciente>
+        <num_afiliacion>00000000</num_afiliacion>
+        <nombre_completo>Jorge Gomez</nombre_completo>
+    </paciente>
+    <doctor>
+        <cedula>AB12345678</cedula>
+        <nombre>Alan Betanzos</nombre>
+    </doctor>
+    <diagnostico>Comezón</diagnostico>
+    <medicamentos>
+        <medicamento>
+            <nombre>Ibuprofeno (600mg)</nombre>
+            <dosis>2 TABLETAS</dosis>
+            <frecuencia>DIARIAS</frecuencia>
+        </medicamento>
+    </medicamentos>
+    <metadatos>
+        <origen>WEB_BACKEND</origen>
+        <operacion>NUEVA_RECETA</operacion>
+        <checksum>a5c6ac4fd5c5ac4a43abf84369703108cdcc58fd8d10d7e727279ec6e77686f8</checksum>
+    </metadatos>
+</receta>

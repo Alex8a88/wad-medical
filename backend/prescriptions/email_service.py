@@ -19,6 +19,9 @@ from reportlab.lib.units import inch
 from PyPDF2 import PdfWriter, PdfReader
 from django.conf import settings
 
+# --- IMPORTACIÓN NUEVA: Herramienta de subida ---
+from .drive_utils import upload_file_to_drive
+
 SCOPES = ['https://www.googleapis.com/auth/gmail.send']
 
 def generar_password():
@@ -29,15 +32,12 @@ def generar_password():
 def obtener_servicio_gmail():
     """Obtiene el servicio de Gmail API"""
     creds = None
-    
-    # Token file para Gmail
     token_path = os.path.join(settings.BASE_DIR, 'gmail_token.json')
     credentials_path = os.path.join(settings.BASE_DIR, 'credentials.json')
     
     if os.path.exists(token_path):
         creds = Credentials.from_authorized_user_file(token_path, SCOPES)
     
-    # Si no hay credenciales válidas, solicitar autorización
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
@@ -45,7 +45,6 @@ def obtener_servicio_gmail():
             flow = InstalledAppFlow.from_client_secrets_file(credentials_path, SCOPES)
             creds = flow.run_local_server(port=0)
         
-        # Guardar credenciales para próxima ejecución
         with open(token_path, 'w') as token:
             token.write(creds.to_json())
     
@@ -64,7 +63,6 @@ def crear_pdf_receta(receta_info):
     story.append(Paragraph("RECETA MÉDICA", title_style))
     story.append(Spacer(1, 20))
     
-    # Información del paciente y médico
     info_data = [
         ['PACIENTE:', receta_info['paciente_nombre']],
         ['EDAD:', str(receta_info.get('paciente_edad', 'N/A'))],
@@ -89,7 +87,6 @@ def crear_pdf_receta(receta_info):
     story.append(info_table)
     story.append(Spacer(1, 30))
     
-    # Tabla de medicamentos
     story.append(Paragraph("MEDICAMENTOS PRESCRITOS", styles['Heading2']))
     story.append(Spacer(1, 10))
     
@@ -133,29 +130,20 @@ def proteger_pdf_con_password(pdf_bytes, password):
     return output_buffer.getvalue()
 
 def crear_mensaje_con_adjunto(destinatario, asunto, cuerpo, pdf_bytes, filename):
-    """Crea un mensaje de email con adjunto PDF"""
     mensaje = MIMEMultipart()
     mensaje['to'] = destinatario
     mensaje['subject'] = asunto
-    
     mensaje.attach(MIMEText(cuerpo, 'plain'))
-    
     part = MIMEBase('application', 'pdf')
     part.set_payload(pdf_bytes)
-    
     encoders.encode_base64(part)
     part.add_header('Content-Disposition', f'attachment; filename="{filename}"')
-    
     mensaje.attach(part)
-    
-    raw_message = base64.urlsafe_b64encode(mensaje.as_bytes()).decode()
-    return {'raw': raw_message}
+    return {'raw': base64.urlsafe_b64encode(mensaje.as_bytes()).decode()}
 
 def enviar_email(destinatario, asunto, cuerpo, pdf_bytes=None, filename=None):
-    """Envía email con o sin adjunto"""
     try:
         service = obtener_servicio_gmail()
-        
         if pdf_bytes and filename:
             mensaje = crear_mensaje_con_adjunto(destinatario, asunto, cuerpo, pdf_bytes, filename)
         else:
@@ -167,43 +155,31 @@ def enviar_email(destinatario, asunto, cuerpo, pdf_bytes=None, filename=None):
         
         result = service.users().messages().send(userId='me', body=mensaje).execute()
         return True, f"Email enviado. ID: {result['id']}"
-        
     except Exception as e:
         return False, f"Error enviando email: {str(e)}"
 
 def registrar_envio_email(receta_id, destinatario, tipo_email, asunto, estado, mensaje_error=None):
-    """Registra el intento de envío de email en la base de datos"""
     from .models import EnviosEmail, Receta
     try:
         receta = Receta.objects.get(id=receta_id)
-        envio = EnviosEmail(
-            receta=receta,
-            destinatario=destinatario,
-            tipo_email=tipo_email,
-            asunto=asunto,
-            estado=estado,
-            mensaje_error=mensaje_error
-        )
+        envio = EnviosEmail(receta=receta, destinatario=destinatario, tipo_email=tipo_email, asunto=asunto, estado=estado, mensaje_error=mensaje_error)
         envio.save()
     except Exception as e:
         print(f"Error registrando envío de email: {e}")
 
 def enviar_receta_por_email(receta_info):
-    """Envía la receta y contraseña por email"""
+    """Envía la receta y contraseña por email + SUBE A DRIVE"""
     email_paciente = receta_info.get('paciente_email')
     receta_id = receta_info['id']
     
     if not email_paciente:
         return False, "El paciente no tiene email registrado"
     
-    # Generar contraseña
+    # 1. Generar y Guardar PDF Localmente
     password = generar_password()
-    
-    # Crear PDF
     pdf_bytes = crear_pdf_receta(receta_info)
     pdf_protegido = proteger_pdf_con_password(pdf_bytes, password)
     
-    # Save PDF to pdfs folder for auditing
     pdf_folder = os.path.join(settings.BASE_DIR, 'pdfs')
     os.makedirs(pdf_folder, exist_ok=True)
     pdf_filename = f"receta_{receta_info['id']}_{receta_info['paciente_nombre'].replace(' ', '_')}.pdf"
@@ -211,37 +187,42 @@ def enviar_receta_por_email(receta_info):
     
     with open(pdf_path, 'wb') as f:
         f.write(pdf_protegido)
-    print(f"PDF saved to: {pdf_path}")
-    
-    # Email con PDF
-    filename = f"receta_{receta_info['id']}_{receta_info['paciente_nombre'].replace(' ', '_')}.pdf"
+    print(f"✅ PDF generado localmente: {pdf_path}")
+
+    # =================================================================
+    # 🚀 PASO NUEVO: SUBIR EL PDF A DRIVE AUTOMÁTICAMENTE
+    # =================================================================
+    print(f"☁️ Iniciando subida automática a Drive: {pdf_filename}")
+    try:
+        drive_file_id = upload_file_to_drive(pdf_path, pdf_filename)
+        if drive_file_id:
+            print(f"✅ PDF subido a Drive con éxito. ID: {drive_file_id}")
+        else:
+            print("⚠️ Advertencia: La subida a Drive falló o retornó None.")
+    except Exception as e:
+        print(f"❌ Error crítico subiendo a Drive: {e}")
+    # =================================================================
+
+    # 2. Enviar Emails (PDF + Password)
+    filename = pdf_filename
     asunto_pdf = f"Receta Médica - {receta_info['paciente_nombre']}"
     cuerpo_pdf = f"""Estimado/a {receta_info['paciente_nombre']},
 
 Adjunto encontrará su receta médica en formato PDF.
-
-Detalles de la receta:
+Detalles:
 - Médico: {receta_info['medico_nombre']}
 - Diagnóstico: {receta_info['diagnostico']}
 - Fecha: {receta_info['fecha_creacion']}
 
-El archivo está protegido con contraseña por seguridad. Recibirá la contraseña en un email separado.
-
-Saludos cordiales,
-Sistema de Recetas Médicas"""
+El archivo está protegido con contraseña. Recibirá la clave en otro correo.
+Saludos,
+Sistema Médico"""
     
-    # Email con contraseña
-    asunto_password = f"Contraseña para Receta Médica - {receta_info['paciente_nombre']}"
+    asunto_password = f"Contraseña para Receta - {receta_info['paciente_nombre']}"
     cuerpo_password = f"""Estimado/a {receta_info['paciente_nombre']},
-
-La contraseña para abrir su receta médica es: {password}
-
-Por favor, mantenga esta contraseña segura y no la comparta.
-
-Saludos cordiales,
-Sistema de Recetas Médicas"""
+La contraseña para su receta es: {password}
+Por favor, guárdela en un lugar seguro."""
     
-    # Enviar PDF
     success_pdf, msg_pdf = enviar_email(email_paciente, asunto_pdf, cuerpo_pdf, pdf_protegido, filename)
     if success_pdf:
         registrar_envio_email(receta_id, email_paciente, 'PDF', asunto_pdf, 'EXITOSO')
@@ -249,7 +230,6 @@ Sistema de Recetas Médicas"""
         registrar_envio_email(receta_id, email_paciente, 'PDF', asunto_pdf, 'ERROR', msg_pdf)
         return False, f"Error enviando PDF: {msg_pdf}"
     
-    # Enviar contraseña
     success_pwd, msg_pwd = enviar_email(email_paciente, asunto_password, cuerpo_password)
     if success_pwd:
         registrar_envio_email(receta_id, email_paciente, 'PASSWORD', asunto_password, 'EXITOSO')
@@ -257,4 +237,4 @@ Sistema de Recetas Médicas"""
         registrar_envio_email(receta_id, email_paciente, 'PASSWORD', asunto_password, 'ERROR', msg_pwd)
         return False, f"Error enviando contraseña: {msg_pwd}"
     
-    return True, f"Emails enviados correctamente a {email_paciente}"
+    return True, f"Proceso completado para {email_paciente}"
