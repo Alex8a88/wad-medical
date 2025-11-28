@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:element name="paciente">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="num_afiliacion" type="xs:string"/>
+                <xs:element name="datos_personales">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="primer_nombre" type="xs:string"/>
+                            <xs:element name="segundo_nombre" type="xs:string" minOccurs="0"/>
+                            <xs:element name="primer_apellido" type="xs:string"/>
+                            <xs:element name="segundo_apellido" type="xs:string" minOccurs="0"/>
+                            <xs:element name="nombre_completo" type="xs:string"/>
+                            <xs:element name="edad" type="xs:integer"/>
+                            <xs:element name="genero" type="xs:string"/>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+                <xs:element name="datos_medicos">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="tipo_sangre" type="xs:string"/>
+                            <xs:element name="alergias" type="xs:string"/>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+                <xs:element name="contacto">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="email_usuario" type="xs:string"/>
+                            <xs:element name="numero_telefono" type="xs:string"/>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+                <xs:element name="direccion">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="calle" type="xs:string"/>
+                            <xs:element name="num_ext" type="xs:string"/>
+                            <xs:element name="num_int" type="xs:string" minOccurs="0"/>
+                            <xs:element name="colonia" type="xs:string"/>
+                            <xs:element name="ciudad" type="xs:string"/>
+                            <xs:element name="estado" type="xs:string"/>
+                            <xs:element name="c_postal" type="xs:string"/>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+</xs:schema>

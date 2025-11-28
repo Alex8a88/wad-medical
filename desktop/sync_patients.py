@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
-"""
-Patient Synchronization Module
-Fetches patient XML files from Google Drive and updates local database
-"""
 import os
+import pickle
 import xml.etree.ElementTree as ET
 from googleapiclient.discovery import build
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from db import SessionLocal, Usuario, PerfilPaciente, Direcciones, CatalogoEstados, init_db
-from config import DRIVE_FOLDER_ID_PACIENTES as DRIVE_FOLDER_ID
 
-# Intentamos importar la versión robusta de checksum_utils
+# Intentamos importar el ID de la carpeta
+try:
+    from config import DRIVE_FOLDER_ID_PACIENTES 
+except ImportError:
+    DRIVE_FOLDER_ID_PACIENTES = None
+
+# Importamos el verificador robusto
 try:
     from checksum_utils import verificar_checksum_xml
 except ImportError:
@@ -20,41 +22,53 @@ except ImportError:
 
 SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
 
+# --- CORRECCIÓN MAESTRA: RUTAS ABSOLUTAS ---
+# Esto calcula la ruta exacta de la carpeta 'desktop' sin importar desde dónde ejecutes
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CREDENTIALS_PATH = os.path.join(BASE_DIR, 'credentials.json')
+TOKEN_PATH = os.path.join(BASE_DIR, 'token.pickle')
+
 def authenticate_google_drive():
-    """Autenticación con Google Drive."""
+    """Autentica y devuelve el servicio de Drive usando rutas seguras."""
     creds = None
-    if os.path.exists('token.pickle'):
-        import pickle
-        with open('token.pickle', 'rb') as token:
+    if os.path.exists(TOKEN_PATH):
+        with open(TOKEN_PATH, 'rb') as token:
             creds = pickle.load(token)
+            
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+            try:
+                creds.refresh(Request())
+            except Exception:
+                creds = None
+        
+        if not creds:
+            if not os.path.exists(CREDENTIALS_PATH):
+                # Mensaje de error detallado para saber qué pasó
+                raise FileNotFoundError(f"No se encontró el archivo de credenciales en: {CREDENTIALS_PATH}")
+                
+            flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_PATH, SCOPES)
             creds = flow.run_local_server(port=0)
-        import pickle
-        with open('token.pickle', 'wb') as token:
+        
+        # Guardamos el token en la ruta segura
+        with open(TOKEN_PATH, 'wb') as token:
             pickle.dump(creds, token)
+            
     return build('drive', 'v3', credentials=creds)
 
 def fetch_patient_files(service, folder_id):
-    """Lista los archivos XML de la carpeta."""
     try:
         results = service.files().list(
-            q=f"'{folder_id}' in parents and name contains 'paciente_' and name contains '.xml'",
+            q=f"'{folder_id}' in parents and name contains 'paciente_' and name contains '.xml' and trashed = false",
             fields="files(id, name, modifiedTime)",
             orderBy="name desc"
         ).execute()
         return results.get('files', [])
-    except Exception:
+    except Exception as e:
+        print(f"Error buscando archivos: {e}")
         return []
 
 def download_file_bytes(service, file_id):
-    """
-    Descarga el archivo como BYTES puros (Binario).
-    Esto es vital para evitar corrupciones de saltos de línea antes de la verificación.
-    """
     try:
         request = service.files().get_media(fileId=file_id)
         return request.execute()
@@ -63,11 +77,9 @@ def download_file_bytes(service, file_id):
         return None
 
 def parse_patient_xml_string(xml_string):
-    """Parsea el string XML a un diccionario de datos."""
     try:
         root = ET.fromstring(xml_string)
         patient_data = {}
-        
         def get_val(tag): return root.findtext(f'.//{tag}', default='').strip()
         
         patient_data['primer_nombre'] = get_val('primer_nombre')
@@ -98,7 +110,6 @@ def parse_patient_xml_string(xml_string):
         return None
 
 def upsert_patient(session, data, mod_time, integrity_valid=True):
-    """Actualiza o inserta el paciente en la BD local."""
     try:
         usuario = session.query(Usuario).filter_by(email_usuario=data['email_usuario']).first()
         if usuario:
@@ -108,7 +119,7 @@ def upsert_patient(session, data, mod_time, integrity_valid=True):
             usuario = perfil.usuario if perfil else None
 
         if usuario and perfil:
-            # Actualizar existente
+            # Actualizar
             usuario.primer_nombre = data['primer_nombre']
             usuario.segundo_nombre = data['segundo_nombre']
             usuario.primer_apellido = data['primer_apellido']
@@ -120,13 +131,10 @@ def upsert_patient(session, data, mod_time, integrity_valid=True):
             perfil.num_afiliacion = data['num_afiliacion']
             perfil.tipo_sangre = data['tipo_sangre']
             perfil.alergias = data['alergias']
-            
-            # Actualizar bandera de integridad
             if hasattr(perfil, "integridad_valida") or "integridad_valida" in PerfilPaciente.__table__.c:
                 perfil.integridad_valida = integrity_valid
 
-            if not usuario.direccion:
-                usuario.direccion = Direcciones(id_usuario=usuario.id_usuario)
+            if not usuario.direccion: usuario.direccion = Direcciones(id_usuario=usuario.id_usuario)
             usuario.direccion.calle = data['calle']
             usuario.direccion.num_ext = data['num_ext']
             usuario.direccion.num_int = data['num_int']
@@ -136,39 +144,31 @@ def upsert_patient(session, data, mod_time, integrity_valid=True):
             
             print(f"Actualizado: {data['primer_nombre']} (Integridad: {'OK' if integrity_valid else 'FALLIDA'})")
         else:
-            # Crear nuevo
+            # Crear
             if not data['email_usuario']: return True
             usuario = Usuario(
-                primer_nombre=data['primer_nombre'],
-                segundo_nombre=data['segundo_nombre'],
-                primer_apellido=data['primer_apellido'],
-                segundo_apellido=data['segundo_apellido'],
-                edad=data['edad'],
-                genero=data['genero'],
-                email_usuario=data['email_usuario'],
+                primer_nombre=data['primer_nombre'], segundo_nombre=data['segundo_nombre'],
+                primer_apellido=data['primer_apellido'], segundo_apellido=data['segundo_apellido'],
+                edad=data['edad'], genero=data['genero'], email_usuario=data['email_usuario'],
                 numero_telefono=data['numero_telefono']
             )
             session.add(usuario)
             session.flush()
             
             pf_args = {
-                "id_usuario": usuario.id_usuario,
-                "num_afiliacion": data['num_afiliacion'],
-                "tipo_sangre": data['tipo_sangre'],
-                "alergias": data['alergias']
+                "id_usuario": usuario.id_usuario, "num_afiliacion": data['num_afiliacion'],
+                "tipo_sangre": data['tipo_sangre'], "alergias": data['alergias']
             }
             if hasattr(PerfilPaciente, "integridad_valida") or "integridad_valida" in PerfilPaciente.__table__.c:
                 pf_args["integridad_valida"] = integrity_valid
-                
             perfil = PerfilPaciente(**pf_args)
             session.add(perfil)
             session.flush()
             
             direccion = Direcciones(
-                id_usuario=usuario.id_usuario,
-                calle=data['calle'], num_ext=data['num_ext'], num_int=data['num_int'],
-                colonia=data['colonia'], ciudad=data['ciudad'], c_postal=data['c_postal'],
-                estado=1
+                id_usuario=usuario.id_usuario, calle=data['calle'], num_ext=data['num_ext'],
+                num_int=data['num_int'], colonia=data['colonia'], ciudad=data['ciudad'],
+                c_postal=data['c_postal'], estado=1
             )
             session.add(direccion)
             print(f"Creado: {data['primer_nombre']} (Integridad: {'OK' if integrity_valid else 'FALLIDA'})")
@@ -181,7 +181,6 @@ def upsert_patient(session, data, mod_time, integrity_valid=True):
         return False
 
 def get_latest_patient_files(files):
-    """Filtra para obtener solo el archivo más reciente por paciente."""
     patient_files = {}
     for file in files:
         fn = file['name']
@@ -197,12 +196,14 @@ def get_latest_patient_files(files):
 def sync_patients_from_drive():
     try:
         init_db()
+        # Usar la autenticación corregida con rutas absolutas
         service = authenticate_google_drive()
-        if not DRIVE_FOLDER_ID:
-            print("No Folder ID.")
+        
+        if not DRIVE_FOLDER_ID_PACIENTES:
+            print("❌ Error: Falta configurar DRIVE_FOLDER_ID_PACIENTES en config.py")
             return False
             
-        files = fetch_patient_files(service, DRIVE_FOLDER_ID)
+        files = fetch_patient_files(service, DRIVE_FOLDER_ID_PACIENTES)
         if not files: return True
         
         latest = get_latest_patient_files(files)
@@ -210,19 +211,14 @@ def sync_patients_from_drive():
         
         try:
             for file in latest:
-                # 1. Descargar BYTES (importante para integridad)
+                # Descarga binaria
                 xml_bytes = download_file_bytes(service, file['id'])
                 if not xml_bytes: continue
                 
-                # 2. Guardar temporalmente en modo BINARIO ('wb')
-                # Esto asegura que el archivo en disco es idéntico al de Drive
-                temp_path = f"temp_{file['name']}"
+                # Rutas temporales seguras
+                temp_path = os.path.join(BASE_DIR, f"temp_{file['name']}")
                 try:
-                    with open(temp_path, 'wb') as f:
-                        f.write(xml_bytes)
-                    
-                    # 3. Verificar usando la utilidad robusta (checksum_utils)
-                    # Ella se encargará de ignorar BOM y normalizar saltos de línea
+                    with open(temp_path, 'wb') as f: f.write(xml_bytes)
                     es_valido, msg = verificar_checksum_xml(temp_path)
                 except Exception as e:
                     print(f"Error verificación: {e}")
@@ -233,18 +229,15 @@ def sync_patients_from_drive():
                         except: pass
                         
                 if not es_valido:
-                    print(f"⚠️ ALERTA: {file['name']} alterado. Se importará marcado como INVÁLIDO.")
+                    print(f"⚠️ ALERTA: {file['name']} alterado.")
                 else:
-                    print(f"✅ {file['name']} verificado correctamente.")
+                    print(f"✅ {file['name']} verificado.")
                     
-                # 4. Parsear contenido (ahora sí como texto) y guardar en DB
                 try:
                     xml_str = xml_bytes.decode('utf-8')
                     data = parse_patient_xml_string(xml_str)
-                    if data: 
-                        upsert_patient(session, data, file['modifiedTime'], es_valido)
+                    if data: upsert_patient(session, data, file['modifiedTime'], es_valido)
                 except Exception: pass
-                
             return True
         finally:
             session.close()

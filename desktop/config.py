@@ -1,6 +1,10 @@
 import os
 from dotenv import load_dotenv
 
+# --- TRUCO DE MAGIA: RUTAS ABSOLUTAS ---
+# Esto calcula la ruta real de la carpeta 'desktop' en tu disco duro
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # Load environment variables
 load_dotenv()
 
@@ -9,16 +13,21 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_API_KEY = os.getenv("SUPABASE_API_KEY")
 
 # Legacy SQLite
-DATABASE_URL = "sqlite:///recetas.db"
+# Usamos la ruta absoluta también para la base de datos
+db_path = os.path.join(BASE_DIR, "recetas.db")
+DATABASE_URL = f"sqlite:///{db_path}"
 
 # --- GOOGLE DRIVE CONFIGURATION ---
-# ¡OJO! Aquí debes poner los IDs que copiaste de las carpetas específicas
 
-# 1. Carpeta de PACIENTES (Para sync_patients.py)
+# ID de la carpeta PACIENTES
 DRIVE_FOLDER_ID_PACIENTES = "1mNEOtJcX90E3N3WMi2knv8tiJ7x0Am93"
-# 2. Carpeta de RECETAS (Para sync_prescriptions.py)
-DRIVE_FOLDER_ID_RECETAS = "13Ui7y2TCeQCSbxRs1UlqS-v5X79snhyR"
+
+# ID de la carpeta RECETAS
+DRIVE_FOLDER_ID_RECETAS = "1KQ-W6Glmj7vjnfLW9DxhNmLnx2aaNxrF"
 
 APP_NAME = "AppRecetasDesktop"
-CREDENTIALS_FILE = "credentials.json"
-TOKEN_FILE = "token.pickle"
+
+# --- RUTAS DE CREDENCIALES ---
+# Usamos os.path.join para construir la ruta completa y segura
+CREDENTIALS_FILE = os.path.join(BASE_DIR, "credentials.json")
+TOKEN_FILE = os.path.join(BASE_DIR, "token.pickle")
