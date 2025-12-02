@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<receta>
+    <folio>18</folio>
+    <fecha_creacion>2025-12-02T17:22:37.561137+00:00</fecha_creacion>
+    <paciente>
+        <num_afiliacion>0000</num_afiliacion>
+        <nombre_completo>Jorge Gomez</nombre_completo>
+    </paciente>
+    <doctor>
+        <cedula>AB12345678</cedula>
+        <nombre>Alan Betanzos</nombre>
+    </doctor>
+    <diagnostico>Dolor de muela</diagnostico>
+    <medicamentos>
+        <medicamento>
+            <nombre>Ibuprofeno (600mg)</nombre>
+            <dosis>1 tableta</dosis>
+            <frecuencia>C/12 horas</frecuencia>
+            <duracion>N/A</duracion>
+            <notas/>
+        </medicamento>
+    </medicamentos>
+    <metadatos>
+        <origen>WEB_BACKEND</origen>
+        <operacion>NUEVA_RECETA</operacion>
+        <checksum>29c58df3a7be98cad38b17cb8a230586675d57e58035fe095f77238b84c70e20</checksum>
+    </metadatos>
+</receta>

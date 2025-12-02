@@ -6,6 +6,8 @@ from django.conf import settings
 from xml.dom import minidom
 from lxml import etree
 
+# --- ERROR CORREGIDO: Se eliminó la auto-importación de aquí ---
+
 def calcular_hash_sha256(texto):
     """
     Recibe un string (contenido del XML o datos) y devuelve su hash SHA-256.
@@ -87,39 +89,29 @@ def create_patient_xml_content(perfil_paciente):
         ET.SubElement(direccion_elem, 'c_postal').text = direccion.c_postal
 
     # ==========================================
-    # NUEVO: VALIDACIÓN XSD ANTES DE CHECKSUM
+    # VALIDACIÓN XSD ANTES DE CHECKSUM
     # ==========================================
     xsd_path = os.path.join(settings.BASE_DIR, 'schemas', 'paciente.xsd')
     if os.path.exists(xsd_path):
         es_valido, mensaje = validar_xsd(root, xsd_path)
         if not es_valido:
             print(f"❌ Error: El XML del paciente no cumple el esquema XSD. {mensaje}")
-            # Aquí puedes decidir si lanzar una excepción o solo loguear el error
-            # raise ValueError(f"XML Inválido: {mensaje}")
     else:
         print(f"⚠️ Advertencia: No se encontró el esquema XSD en {xsd_path}")
 
-    # 2.  CÁLCULO DEL CHECKSUM 
-    
-    # Convertir el XML (solo datos) a un string limpio para calcular el hash.
+    # 2. CÁLCULO DEL CHECKSUM 
     core_xml_bytes = ET.tostring(root, encoding='utf-8')
     core_xml_string_for_hash = core_xml_bytes.decode('utf-8').strip()
-    
-    # Calcular el Checksum (SHA-256)
     checksum_calculado = calcular_hash_sha256(core_xml_string_for_hash)
     
-    # 3. AÑADIR los Metadatos y el Checksum
+    # 3. AÑADIR Metadatos
     metadatos = ET.SubElement(root, 'metadatos')
     ET.SubElement(metadatos, 'origen').text = 'WEB'
     ET.SubElement(metadatos, 'fecha_evento').text = datetime.now().isoformat() + 'Z'
     ET.SubElement(metadatos, 'operacion').text = 'ALTA'
-    
-    # Inyectar el hash calculado
     ET.SubElement(metadatos, 'checksum').text = checksum_calculado
     
-    # 4. Convertir la estructura final (root + metadatos) a string con formato
+    # 4. Formato Final
     rough_string = ET.tostring(root, encoding='unicode')
     reparsed = minidom.parseString(rough_string)
-    
-    # Usamos tu lógica de formato original para el XML final
     return reparsed.toprettyxml(indent="    ", encoding=None).replace('<?xml version="1.0" ?>', '<?xml version="1.0" encoding="UTF-8"?>')

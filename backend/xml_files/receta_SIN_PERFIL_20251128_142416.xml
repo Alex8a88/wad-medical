@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<receta>
+    <folio>12</folio>
+    <fecha_creacion>2025-11-28T20:23:27.679526+00:00</fecha_creacion>
+    <paciente>
+        <num_afiliacion>00000000</num_afiliacion>
+        <nombre_completo>Jorge Gomez</nombre_completo>
+    </paciente>
+    <doctor>
+        <cedula>AB12345678</cedula>
+        <nombre>Alan Betanzos</nombre>
+    </doctor>
+    <diagnostico>Presenta dolor de Cabeza y ojos llorosos</diagnostico>
+    <medicamentos>
+        <medicamento>
+            <nombre>Ibuprofeno (600mg)</nombre>
+            <dosis>1 TABLETA</dosis>
+            <frecuencia>Cada día</frecuencia>
+        </medicamento>
+    </medicamentos>
+    <metadatos>
+        <origen>WEB_BACKEND</origen>
+        <operacion>NUEVA_RECETA</operacion>
+        <checksum>6b70950a14b034f0c714c25c368ae09b52392add69a6e3f276d38474fb857276</checksum>
+    </metadatos>
+</receta>

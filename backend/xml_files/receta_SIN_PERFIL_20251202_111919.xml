@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<receta>
+    <folio>17</folio>
+    <fecha_creacion>2025-12-02T17:19:19.297981+00:00</fecha_creacion>
+    <paciente>
+        <num_afiliacion>0000</num_afiliacion>
+        <nombre_completo>Jorge Gomez</nombre_completo>
+    </paciente>
+    <doctor>
+        <cedula>AB12345678</cedula>
+        <nombre>Alan Betanzos</nombre>
+    </doctor>
+    <diagnostico>Dolor de espalda</diagnostico>
+    <medicamentos>
+        <medicamento>
+            <nombre>Paracetamol (500mg)</nombre>
+            <dosis>1 tableta 500 mg</dosis>
+            <frecuencia>Cada 6 horas</frecuencia>
+            <duracion>N/A</duracion>
+            <notas/>
+        </medicamento>
+    </medicamentos>
+    <metadatos>
+        <origen>WEB_BACKEND</origen>
+        <operacion>NUEVA_RECETA</operacion>
+        <checksum>f1629230a35f849c64fd9a61a8fb655e9f43eb61bd849cfc226f62db8fe7d30d</checksum>
+    </metadatos>
+</receta>

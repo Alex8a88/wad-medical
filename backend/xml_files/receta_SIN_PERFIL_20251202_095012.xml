@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<receta>
+    <folio>13</folio>
+    <fecha_creacion>2025-12-02T15:50:12.442816+00:00</fecha_creacion>
+    <paciente>
+        <num_afiliacion>0000</num_afiliacion>
+        <nombre_completo>Jorge Gomez</nombre_completo>
+    </paciente>
+    <doctor>
+        <cedula>AB12345678</cedula>
+        <nombre>Alan Betanzos</nombre>
+    </doctor>
+    <diagnostico>Dolor de uña</diagnostico>
+    <medicamentos>
+        <medicamento>
+            <nombre>Paracetamol (500mg)</nombre>
+            <dosis>500 MG </dosis>
+            <frecuencia>Cada 2 horas</frecuencia>
+            <duracion>N/A</duracion>
+            <notas/>
+        </medicamento>
+    </medicamentos>
+    <metadatos>
+        <origen>WEB_BACKEND</origen>
+        <operacion>NUEVA_RECETA</operacion>
+        <checksum>d345e4e0ba410af949d5d8cc6a2707dbbfbe83e0228ef542545707c0dff14045</checksum>
+    </metadatos>
+</receta>

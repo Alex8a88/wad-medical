@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:element name="receta">
+        <xs:complexType>
+            <xs:sequence>
+                <!-- Campos opcionales (minOccurs=0) para flexibilidad -->
+                <xs:element name="folio" type="xs:string" minOccurs="0"/>
+                <xs:element name="fecha_creacion" type="xs:string" minOccurs="0"/>
+                
+                <xs:element name="paciente" minOccurs="0">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="num_afiliacion" type="xs:string" minOccurs="0"/>
+                            <xs:element name="nombre_completo" type="xs:string" minOccurs="0"/>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+                
+                <xs:element name="doctor" minOccurs="0">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="cedula" type="xs:string" minOccurs="0"/>
+                            <xs:element name="nombre" type="xs:string" minOccurs="0"/>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+                
+                <xs:element name="diagnostico" type="xs:string" minOccurs="0"/>
+                
+                <xs:element name="medicamentos" minOccurs="0">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="medicamento" maxOccurs="unbounded" minOccurs="0">
+                                <xs:complexType>
+                                    <xs:sequence>
+                                        <xs:element name="nombre" type="xs:string" minOccurs="0"/>
+                                        <xs:element name="dosis" type="xs:string" minOccurs="0"/>
+                                        <xs:element name="frecuencia" type="xs:string" minOccurs="0"/>
+                                        <xs:element name="duracion" type="xs:string" minOccurs="0"/>
+                                        <xs:element name="notas" type="xs:string" minOccurs="0"/>
+                                    </xs:sequence>
+                                </xs:complexType>
+                            </xs:element>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+
+                <!-- Permitimos metadatos al final -->
+                <xs:element name="metadatos" minOccurs="0">
+                     <xs:complexType>
+                        <xs:sequence>
+                            <xs:any processContents="skip" minOccurs="0" maxOccurs="unbounded"/>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+</xs:schema>
